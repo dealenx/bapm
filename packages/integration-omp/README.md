@@ -46,6 +46,7 @@ bunx github:dealenx/bapm install --target omp
 ```
 
 Проект должен содержать `.omp/` (auto-detect) либо target форсируется флагом `--target omp` / `active`.
+Голый `--target omp` без `targets:` работает из-под `bunx github:…` (git-run резолвит пакет прямо из репозитория); npm-установленному CLI нужен либо `npm i -D @b-apm/integration-omp`, либо запись в `targets:`.
 
 ## Ссылки
 

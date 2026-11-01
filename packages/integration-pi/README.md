@@ -44,6 +44,7 @@ bunx github:dealenx/bapm install --target pi
 ```
 
 Проект должен содержать `.pi/` (auto-detect) либо target форсируется флагом `--target pi` / `active`.
+Голый `--target pi` без `targets:` работает из-под `bunx github:…` (git-run резолвит пакет прямо из репозитория); npm-установленному CLI нужен либо `npm i -D @b-apm/integration-pi`, либо запись в `targets:`.
 
 ## Ссылки
 

@@ -55,6 +55,23 @@ overrides:
 importers:
 
   .:
+    dependencies:
+      fflate:
+        specifier: ^0.8.3
+        version: 0.8.3
+      ignore:
+        specifier: ^7.0.8
+        version: 7.0.8
+      semver:
+        specifier: ^7.8.5
+        version: 7.8.5
+      tldts:
+        specifier: ^7.4.10
+        version: 7.4.10
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
+
     devDependencies:
       '@b-apm/cli':
         specifier: workspace:*

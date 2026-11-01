@@ -18,6 +18,8 @@ export const CANONICAL_HOST_IDS = [
   "claude",
   "codex",
   "gemini",
+  "pi",
+  "omp",
 ] as const;
 
 export type CanonicalHostId = (typeof CANONICAL_HOST_IDS)[number];
@@ -67,6 +69,8 @@ export function probeCanonicalHostMarkers(cwd: string): string[] {
   if (isDir(cwd, ".claude") || isFile(cwd, "CLAUDE.md")) found.push("claude");
   if (isDir(cwd, ".codex")) found.push("codex");
   if (isDir(cwd, ".gemini") || isFile(cwd, "GEMINI.md")) found.push("gemini");
+  if (isDir(cwd, ".pi")) found.push("pi");
+  if (isDir(cwd, ".omp")) found.push("omp");
 
   return found;
 }

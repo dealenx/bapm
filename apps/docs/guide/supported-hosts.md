@@ -19,6 +19,8 @@ CLI **не** включает hosts «из коробки». Для извест
 | **Gemini**       | `.gemini/` или `GEMINI.md`        | `@b-apm/integration-gemini`       | нет                        | `targets:` ниже |
 | **Antigravity**  | нет                               | `@b-apm/integration-antigravity`  | да (`--target` / `active`) | `targets:` ниже |
 | **Agent Skills** | нет                               | `@b-apm/integration-agent-skills` | да                         | `targets:` ниже |
+| **Pi**           | `.pi/`                            | `@b-apm/integration-pi`           | нет                        | `targets:` ниже |
+| **Omp**          | `.omp/`                           | `@b-apm/integration-omp`          | нет                        | `targets:` ниже |
 | **Свой агент**   | по вашей `detect`                 | —                                 | map обязателен             | см. Advanced    |
 
 Пакет нужно **установить** (project `npm i -D` или global рядом с CLI). Absent map ≠ «нет hosts»: CLI пробует canonical для известных id.

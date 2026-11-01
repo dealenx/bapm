@@ -55,6 +55,17 @@ overrides:
 importers:
 
   .:
+    dependencies:
+      '@b-apm/core':
+        specifier: 0.1.0
+        version: 0.1.0
+      '@b-apm/integration-api':
+        specifier: 0.1.0
+        version: 0.1.0
+      '@b-apm/integration-cursor':
+        specifier: 0.1.0
+        version: 0.1.0
+
     devDependencies:
       '@b-apm/cli':
         specifier: workspace:*
@@ -468,6 +479,18 @@ packages:
   '@algolia/requester-node-http@5.56.0':
     resolution: {integrity: sha512-PIOUXlSnrqM0S+WOgDRb4RzotydJH7ZoT6tOyL7tAO7qJOfvX5wsEW8Pe+PMKMwvuI4/gIyK9cg2H7lJXqnc4Q==}
     engines: {node: '>= 14.0.0'}
+
+  '@b-apm/core@0.1.0':
+    resolution: {integrity: sha512-FaFh99aMopGj3yMNdUxHo5sq5miqctiZBTeU5c8DrfjtECeylfKDFSAKn+HNZW044NkowNt591r6xiC054vR9w==}
+    engines: {node: '>=22.12.0'}
+
+  '@b-apm/integration-api@0.1.0':
+    resolution: {integrity: sha512-2BGojW5qNb/vK6BV0gw9DohH0P9aYnAFbsGfzdYd1cexzrKgwNC1AeVOVBmPPlYW9IKXpxAQCKLgblU616s3NQ==}
+    engines: {node: '>=22.12.0'}
+
+  '@b-apm/integration-cursor@0.1.0':
+    resolution: {integrity: sha512-/QlYwJoPSBwaoWAmNwfdC2UR1//lJf8Df3d62HRV6wEvURw8MvHfTGPekXo7I4CuRE0ypv4ORcsaGV9T/pDmUg==}
+    engines: {node: '>=22.12.0'}
 
   '@babel/code-frame@7.29.7':
     resolution: {integrity: sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw==}
@@ -2793,6 +2816,20 @@ snapshots:
   '@algolia/requester-node-http@5.56.0':
     dependencies:
       '@algolia/client-common': 5.56.0
+
+  '@b-apm/core@0.1.0':
+    dependencies:
+      '@b-apm/integration-api': 0.1.0
+      fflate: 0.8.3
+      semver: 7.8.5
+      tldts: 7.4.10
+      yaml: 2.9.0
+
+  '@b-apm/integration-api@0.1.0': {}
+
+  '@b-apm/integration-cursor@0.1.0':
+    dependencies:
+      '@b-apm/integration-api': 0.1.0
 
   '@babel/code-frame@7.29.7':
     dependencies:

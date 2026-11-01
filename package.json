@@ -6,9 +6,6 @@
   "bin": {
     "bapm": "./bin/bapm.mjs"
   },
-  "workspaces": [
-    "packages/*"
-  ],
   "type": "module",
   "scripts": {
     "ready": "vp check && vp run -r test && vp run -r build",
@@ -24,6 +21,11 @@
     "version:bump": "bumpp packages/*/package.json",
     "publish:meta": "node scripts/sync-package-publish-meta.mjs",
     "prepare": "vp config --no-agent"
+  },
+  "dependencies": {
+    "@b-apm/core": "0.1.0",
+    "@b-apm/integration-api": "0.1.0",
+    "@b-apm/integration-cursor": "0.1.0"
   },
   "devDependencies": {
     "@b-apm/cli": "workspace:*",

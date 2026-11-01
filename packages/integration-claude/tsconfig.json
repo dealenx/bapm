@@ -8,7 +8,8 @@
     "resolveJsonModule": true,
     "types": ["node"],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@b-apm/*": ["../*/src/index.ts"]
     },
     "strict": true,
     "noUnusedLocals": true,

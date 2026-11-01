@@ -9,7 +9,8 @@
     "types": ["node"],
     "paths": {
       "@/*": ["./src/*"],
-      "@/modules/*": ["./src/modules/*/index.ts"]
+      "@/modules/*": ["./src/modules/*/index.ts"],
+      "@b-apm/*": ["../*/src/index.ts"]
     },
     "strict": true,
     "noUnusedLocals": true,

@@ -52,6 +52,14 @@ npm i -g @b-apm/cli @b-apm/integration-cursor
 
 Вместо `@b-apm/integration-cursor` можно взять другой `@b-apm/integration-*` (например `@b-apm/integration-claude`) или свой пакет интеграции — набор поддерживаемых артефактов у hosts разный.
 
+**Альтернатива — запуск напрямую из GitHub без установки (нужен [Bun](https://bun.sh) ≥ 1.1):**
+
+```bash
+bunx github:dealenx/bapm install
+```
+
+Команда клонирует репозиторий и выполнит CLI из исходников; host-интеграции (например cursor) берутся из этого же репозитория — ставить их отдельно не нужно. Для `npx` используйте npm-пакет: `npx @b-apm/cli`.
+
 Подробности: [поддерживаемые hosts](https://sdju.github.io/bapm/guide/supported-hosts), [выбор host](https://sdju.github.io/bapm/guide/host-selection).
 
 **2. Happy path** — в проекте с `.cursor/` и `bapm.yml`:

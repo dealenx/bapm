@@ -10,9 +10,13 @@ import {
   runInstall as coreRunInstall,
 } from "@b-apm/core";
 import type { InstallDeps, InstallOptions, InstallResult } from "../types/install.types.ts";
-import { registerManifestIntegrationsFromCwd } from "@/app/integrations/loadManifestIntegrations.ts";
+import {
+  loadIntegrationFromPackage,
+  registerManifestIntegrationsFromCwd,
+} from "@/app/integrations/loadManifestIntegrations.ts";
 import { createCliIntegrationRegistry } from "@/app/integrations/registry.ts";
 import { enrichUnregisteredTargetMessage } from "@/common/enrichUnregisteredTargetMessage.ts";
+import { parseTargetSpec } from "@/common/targetSpec.ts";
 
 export function formatInstallHelp(deps: InstallDeps): string {
   return `${deps.name} install — Install agentic dependencies from ${deps.manifestFile}
@@ -32,7 +36,7 @@ Options:
                            Allow transitive http:// deps from this FQDN (repeatable)
   --dev                    With package-ref add: write under devDependencies.apm (no-op without positional)
   --only <apm|mcp>         Install only APM packages (skip MCP) or only MCP configure (skip APM materialize)
-  --target <id>            Force activation of a registered host target (overrides manifest active)
+  --target <id|pkg|id=pkg> Force a host target (overrides manifest active; pkg = @b-apm/integration-<id> or id=package)
   --exclude <id>           Skip MCP configure for runtime id (e.g. cursor); does not skip install
   --update                 Re-resolve mutable refs (rejected with frozen / CI-default frozen)
   --parallel-downloads <n> Concurrent downloads (default 4; 0 = serial)
@@ -59,7 +63,8 @@ Notes:
   a minimal manifest when missing). Frozen rejects positional package-ref add.
   --exclude filters MCP/runtime configure only — not a full skip-install.
   --force is distinct from --target (forced-target activation).
-  Host selection: --target <id> → manifest active: { target: <id> } → sole auto-detect → fail.
+  Host selection: --target <id|package|id=package> → manifest active: { target: <id> } → sole auto-detect → fail.
+  --target package forms: @b-apm/integration-<id> (canonical) or <id>=<npm-package-or-local-path>.
   Set active in bapm.yml / apm.yml when detect is missing or ambiguous.
   When cursor is active, eligible MCP servers write .cursor/mcp.json (direct mcp by default).
 `;
@@ -534,6 +539,11 @@ async function runCoreInstall(
     }
 
     await registerManifestIntegrationsFromCwd(registry, cwd);
+    const target = parsed.target ? parseTargetSpec(parsed.target) : undefined;
+    if (target?.error) throw new Error(target.error);
+    if (target?.specifier) {
+      registry.register(await loadIntegrationFromPackage(target.specifier, target.id, cwd));
+    }
     const result = await coreRunInstall({
       cwd: options.cwd,
       archivePath: archiveLanded ? undefined : archivePath,
@@ -551,8 +561,8 @@ async function runCoreInstall(
       allowInsecureHosts: parsed.allowInsecureHosts,
       dev: parsed.dev,
       only: parsed.only,
-      forcedTarget: parsed.target,
-      forceTarget: parsed.target,
+      forcedTarget: target?.id,
+      forceTarget: target?.id,
       integrationRegistry: registry,
       policyPath: parsed.policyPath,
       policy: parsed.policyPath,

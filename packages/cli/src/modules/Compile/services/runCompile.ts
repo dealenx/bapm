@@ -1,7 +1,11 @@
 import { compileAgentsMd } from "@b-apm/core";
-import { registerManifestIntegrationsFromCwd } from "@/app/integrations/loadManifestIntegrations.ts";
+import {
+  loadIntegrationFromPackage,
+  registerManifestIntegrationsFromCwd,
+} from "@/app/integrations/loadManifestIntegrations.ts";
 import { createCliIntegrationRegistry } from "@/app/integrations/registry.ts";
 import { enrichUnregisteredTargetMessage } from "@/common/enrichUnregisteredTargetMessage.ts";
+import { parseTargetSpec } from "@/common/targetSpec.ts";
 import type { LifecycleCliDeps, LifecycleResult } from "@/common/types/lifecycle.types.ts";
 
 export type CompileOptions = { args?: string[]; cwd?: string };
@@ -130,13 +134,13 @@ Usage:
 
 Options:
   -o, --output PATH   Override the target's default output path
-  --target <id>       Force host (overrides manifest active; required when multi-active or detect is ambiguous)
+  --target <id|pkg|id=pkg> Force host (overrides manifest active; required when detection is missing or ambiguous)
   --dry-run           Preview would-write path; do not write
   -v, --verbose       Print thin source attribution (name, type, path)
   --validate          Discover/validate only; do not write
   --help, -h          Show this help
 
-Host selection: --target <id> → sole manifest active → sole auto-detect → fail.
+Host selection: --target <id|package|id=package> → sole manifest active → sole auto-detect → fail.
 When active lists multiple hosts, pass --target <id>. Compile stays single-host.
 The selected target determines the default output path and rendering.
 `;
@@ -160,10 +164,15 @@ export async function runCompileCli(
     // Fresh registry per run so object-map loads do not leak across projects.
     const registry = createCliIntegrationRegistry();
     await registerManifestIntegrationsFromCwd(registry, cwd);
+    const target = parsed.target ? parseTargetSpec(parsed.target) : undefined;
+    if (target?.error) throw new Error(target.error);
+    if (target?.specifier) {
+      registry.register(await loadIntegrationFromPackage(target.specifier, target.id, cwd));
+    }
     const result = await compileAgentsMd({
       cwd: options.cwd,
       outputFile: parsed.outputFile,
-      forcedTarget: parsed.target,
+      forcedTarget: target?.id,
       integrationRegistry: registry,
       validate: parsed.validate,
       dryRun: parsed.dryRun,

@@ -39,7 +39,7 @@ Commands:
 Install flags (see also: bapm help install):
   --frozen                 Fail closed on lock drift; re-verify deployed hashes when present
   --no-frozen              Opt out of frozen (including when CI defaults to frozen)
-  --target <id>            Force a registered host target (overrides manifest active)
+  --target <id|pkg|id=pkg> Force host target (overrides manifest active; pkg = @b-apm/integration-<id> or id=package)
   --trust-transitive-mcp   Deploy dependency MCP (default: direct dependencies.mcp only)
   --trust-bin / --no-trust-bin   Per-invocation bin/ consent (non-interactive defaults to skip)
 
@@ -65,7 +65,7 @@ Options:
                            Allow transitive http:// from this FQDN (repeatable)
   --dev                    Write package-ref add under devDependencies.apm
   --only <apm|mcp>         Only APM packages or only MCP configure
-  --target <id>            Force activation of a registered host target (overrides manifest active)
+  --target <id|pkg|id=pkg> Force a host target (overrides manifest active; accepts @b-apm/integration-<id> or id=package)
   --update                 Re-resolve mutable refs (rejected with frozen / CI-default frozen)
   --policy <path>          Use explicit policy file (wins over apm-policy.yml / bapm-policy.yml)
   --no-policy              Skip policy discovery and checks (also: BAPM_POLICY_DISABLE=1)

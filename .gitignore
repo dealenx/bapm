@@ -34,3 +34,6 @@ dist-ssr
 
 # External references / samples (not part of the repo)
 .samples/
+
+# Type declarations emitted next to sources by dts builds (never committed)
+packages/*/src/**/*.d.ts

@@ -2,7 +2,7 @@
  * CLI init — fresh scaffold, refuse overwrite, unknown flags.
  */
 import { expect, test, describe, afterEach } from "vite-plus/test";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadManifest } from "@b-apm/core";
 import {
@@ -100,5 +100,17 @@ describe("CLI init", () => {
     expectKnownCommand(combined, "init");
     expect(result).not.toBe(0);
     expect(stderr.join("\n")).toMatch(/not-a-real-flag|unknown.*flag/i);
+  });
+
+  test("init --install scaffolds and installs in one run", async () => {
+    project = createTempProject();
+    mkdirSync(join(project.cwd, ".cursor"), { recursive: true });
+
+    const { result, combined } = await runInProject(project.cwd, ["init", "-y", "--install"]);
+    expectKnownCommand(combined, "init");
+    expect(result).toBe(0);
+    expect(existsSync(join(project.cwd, "bapm.yml"))).toBe(true);
+    expect(existsSync(join(project.cwd, "bapm.lock.yaml"))).toBe(true);
+    expect(combined).toMatch(/installed for cursor/i);
   });
 });

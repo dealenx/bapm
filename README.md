@@ -55,6 +55,8 @@ npm i -g @b-apm/cli @b-apm/integration-cursor
 **Альтернатива — запуск напрямую из GitHub без установки (нужен [Bun](https://bun.sh) ≥ 1.1):**
 
 ```bash
+bunx github:dealenx/bapm init --install   # с нуля: scaffold bapm.yml + install одной командой
+# если bapm.yml уже есть:
 bunx github:dealenx/bapm install
 ```
 

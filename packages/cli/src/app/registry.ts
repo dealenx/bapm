@@ -81,7 +81,7 @@ export type CommandHandler = (argv: string[]) => Promise<number>;
 const handlers: Record<string, CommandHandler> = {
   [COMMAND_HELP]: (argv) => helpCommand(argv, help),
   [COMMAND_VERSION]: (argv) => versionCommand(argv, version),
-  [COMMAND_INIT]: (argv) => initCommand(argv, init),
+  [COMMAND_INIT]: (argv) => initCommand(argv, init, install),
   [COMMAND_PLUGIN]: (argv) => pluginCommand(argv, plugin),
   [COMMAND_INSTALL]: (argv) => installCommand(argv, install),
   [COMMAND_PACK]: (argv) => packCommand(argv, pack),

@@ -10,10 +10,12 @@ Usage:
 Options:
   -y, --yes           Non-interactive defaults (version 0.1.0)
   --target <id>       Record host target (e.g. cursor)
+  --install           Run install right after scaffolding (one-shot)
   --help, -h          Show this help
 
 Notes:
   Writes ${deps.manifestFile} only. Refuses if apm.yml or bapm.yml already exists.
+  --install chains a non-frozen install (the fresh scaffold has no lockfile).
   Unknown flags are rejected. No plugin / marketplace scaffold in M7.
 `;
 }

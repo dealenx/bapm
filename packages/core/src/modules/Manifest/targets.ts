@@ -14,6 +14,8 @@ export const CANONICAL_TARGET_TOKENS = new Set([
   "opencode",
   "windsurf",
   "agent-skills",
+  "pi",
+  "omp",
   "all",
 ]);
 

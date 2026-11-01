@@ -106,11 +106,29 @@ export function createDefaultDownloader(): Downloader {
       if (!args.repoUrl) {
         throw new Error("download requires repoUrl or path");
       }
-      // Clone into temp then checkout commit if provided
       const url = args.repoUrl;
-      await runGit(["clone", "--quiet", url, args.dest], { allowFail: false });
-      if (args.commit) {
-        await runGit(["-C", args.dest, "checkout", "--quiet", args.commit]);
+      const alreadyCloned = existsSync(join(args.dest, ".git"));
+      if (alreadyCloned) {
+        // resolveGit clones this dest first to read the child manifest, and repeat
+        // installs re-enter here — a second clone fails on a non-empty destination.
+        if (args.commit) {
+          try {
+            await runGit(["-C", args.dest, "checkout", "--quiet", args.commit]);
+          } catch {
+            // Pinned commit missing from the reused clone — fetch, then re-checkout.
+            await runGit(["-C", args.dest, "fetch", "--quiet", url], { allowFail: false });
+            await runGit(["-C", args.dest, "checkout", "--quiet", args.commit]);
+          }
+        } else {
+          // Mutable HEAD on a reused clone: refresh to the remote tip like a fresh clone.
+          await runGit(["-C", args.dest, "fetch", "--quiet", url], { allowFail: false });
+          await runGit(["-C", args.dest, "reset", "--quiet", "--hard", "FETCH_HEAD"]);
+        }
+      } else {
+        await runGit(["clone", "--quiet", url, args.dest], { allowFail: false });
+        if (args.commit) {
+          await runGit(["-C", args.dest, "checkout", "--quiet", args.commit]);
+        }
       }
     },
   };

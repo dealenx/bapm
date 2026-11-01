@@ -3,6 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "description": "Better Agent Package Manager — TypeScript APM with a clean architecture",
+  "bin": {
+    "bapm": "./bin/bapm.mjs"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
   "type": "module",
   "scripts": {
     "ready": "vp check && vp run -r test && vp run -r build",

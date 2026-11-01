@@ -62,4 +62,28 @@ describe("CLI install · canonical detect (no targets map)", () => {
     expect(combined).toMatch(/@b-apm\/integration-cursor|integration-cursor/i);
     expect(combined).toMatch(/install|npm|package|resolv/i);
   });
+
+  test("BAPM_GIT_RUN git-run lets canonical fallback resolve from the CLI checkout", async () => {
+    project = createTempProject();
+    writeNoMapProject(project.cwd, {
+      name: "acc-git-run-fallback",
+      withCursor: true,
+      withLeafSkill: true,
+    });
+    // Deliberately do NOT link @b-apm/integration-cursor: resolution must come
+    // from the CLI checkout, exactly like `bunx github:…` runs.
+
+    const previous = process.env.BAPM_GIT_RUN;
+    process.env.BAPM_GIT_RUN = "1";
+    try {
+      const { result, combined } = await runInProject(project.cwd, ["install"]);
+      expectKnownFlags(combined);
+      expect(combined).not.toMatch(/unknown or unregistered target:\s*cursor/i);
+      expect(result).toBe(0);
+      expect(existsSync(skillPath(project.cwd))).toBe(true);
+    } finally {
+      if (previous === undefined) delete process.env.BAPM_GIT_RUN;
+      else process.env.BAPM_GIT_RUN = previous;
+    }
+  });
 });

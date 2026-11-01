@@ -337,6 +337,14 @@ export async function loadIntegrationFromPackage(
 }
 
 /**
+ * `allowCliFallback` below is true only for git-run (`bunx github:owner/bapm`,
+ * BAPM_GIT_RUN=1 from bin/bapm.mjs): the clone has no npm install around the CLI,
+ * so canonical fallback may resolve `@b-apm/integration-<id>` from the CLI's own
+ * checkout (bun honours packages/cli/tsconfig.json paths). npm/global runs keep
+ * project + global roots only — workspace dev deps must not shadow canonical.
+ */
+
+/**
  * Try to resolve+register a canonical `@b-apm/integration-<id>` package.
  * Soft-fails when the package is missing or unloadable so other hosts still work.
  */
@@ -349,7 +357,7 @@ async function tryRegisterCanonicalHost(
   const specifier = canonicalPackageSpecifier(hostId);
   try {
     const integration = await loadIntegrationFromPackage(specifier, hostId, cwd, {
-      allowCliFallback: false,
+      allowCliFallback: process.env.BAPM_GIT_RUN === "1",
     });
     registry.register(integration);
   } catch {

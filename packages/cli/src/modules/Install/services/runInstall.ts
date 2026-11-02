@@ -1,4 +1,5 @@
 import { existsSync, statSync } from "node:fs";
+import { createInterface } from "node:readline";
 import { resolve } from "node:path";
 import {
   createDefaultDownloader,
@@ -59,6 +60,7 @@ Notes:
   Non-interactive installs (CI, BAPM_NON_INTERACTIVE, non-TTY, or frozen) do not deploy
   dependency bin/ by default without --trust-bin or a persisted executables.allow bin grant;
   --trust-bin / --no-trust-bin are per-invocation consent and cannot override org/project deny.
+  Interactive default asks an explicit [y/N] consent prompt for dependency bin/.
   A local .zip path is consumed as a pack archive (install-from-archive).
   Non-zip positionals are package refs added to dependencies.apm (auto-creates
   a minimal manifest when missing). Frozen rejects positional package-ref add.
@@ -583,6 +585,7 @@ async function runCoreInstall(
       noPolicy: parsed.noPolicy,
       trustTransitiveMcp: parsed.trustTransitiveMcp,
       trustBin: parsed.trustBin,
+      askBinConsent: promptBinConsent,
       env: options.env ?? (process.env as Record<string, string | undefined>),
       gitRemote: createDefaultGitRemote(),
       tagLister: createDefaultTagLister(),
@@ -607,6 +610,27 @@ async function runCoreInstall(
     const message = enrichUnregisteredTargetMessage(raw, cwd);
     console.error(`${deps.name}: ${message}`);
     return { ok: false, message };
+  }
+}
+
+/**
+ * Interactive [y/N] consent prompt for the trust-posture bin case.
+ * Only reached on an interactive TTY with default (no --trust-bin) mode;
+ * returns undefined on non-TTY so the old deploy+warning path stays intact.
+ */
+async function promptBinConsent(packageName: string): Promise<boolean | undefined> {
+  if (!process.stdin.isTTY) return undefined;
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const answer = await new Promise<string>((answerResolve) => {
+      rl.question(
+        `bapm: dependency "${packageName}" ships bin/ executables — deploy them? [y/N] `,
+        answerResolve,
+      );
+    });
+    return /^y(es)?$/i.test(answer.trim());
+  } finally {
+    rl.close();
   }
 }
 

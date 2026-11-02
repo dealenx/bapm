@@ -116,6 +116,12 @@ export type RunInstallOptions = {
    */
   trustBin?: "allow" | "deny" | "default";
   /**
+   * Interactive bin-consent prompt for the posture case (default mode, ladder
+   * allows, interactive). Return `true`/`false` for an explicit answer, or
+   * `undefined` to keep deploy+warning behavior (non-TTY / no prompt wired).
+   */
+  askBinConsent?: (packageName: string) => boolean | undefined | Promise<boolean | undefined>;
+  /**
    * Explicit interactive signal for bin consent defaults. When unset, derived from
    * CI / BAPM_NON_INTERACTIVE / frozen / stdin TTY.
    */

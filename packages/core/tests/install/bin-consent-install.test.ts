@@ -297,6 +297,84 @@ describe("install-trust-bin — interactive default", () => {
     expect(deployedBinExists(project.cwd)).toBe(true);
     expect(hasTrustBinWarning(result)).toBe(false);
   });
+
+  test("interactive prompt approving bin deploys without posture warning", async () => {
+    project = createTempProject();
+    mkdirSync(join(project.cwd, ".cursor"), { recursive: true });
+    writeManifestYaml(
+      project.cwd,
+      consumerManifest({
+        name: "prompt-approve",
+        target: "cursor",
+        depYaml: gitDepYaml(),
+      }),
+    );
+
+    const asked: string[] = [];
+    const { result } = await installBinPlugin(project.cwd, {
+      trustBin: "default",
+      isInteractive: true,
+      askBinConsent: (packageName: string) => {
+        asked.push(packageName);
+        return true;
+      },
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(asked).toContain(PKG_ID);
+    expect(deployedBinExists(project.cwd)).toBe(true);
+    expect(hasTrustBinWarning(result)).toBe(false);
+    expect(hasBinWithholdDiagnostic(result)).toBe(false);
+  });
+
+  test("interactive prompt declining bin withholds deploy with declined reason", async () => {
+    project = createTempProject();
+    mkdirSync(join(project.cwd, ".cursor"), { recursive: true });
+    writeManifestYaml(
+      project.cwd,
+      consumerManifest({
+        name: "prompt-decline",
+        target: "cursor",
+        depYaml: gitDepYaml(),
+      }),
+    );
+
+    const { result, skillNames } = await installBinPlugin(project.cwd, {
+      trustBin: "default",
+      isInteractive: true,
+      askBinConsent: () => false,
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(deployedBinExists(project.cwd)).toBe(false);
+    expect(hasBinWithholdDiagnostic(result)).toBe(true);
+    expect(String(flattenDiagnostics(result))).toMatch(/declined/i);
+    // Skills still materialize regardless of bin consent.
+    expect(skillNames).toContain(SKILL_NAME);
+  });
+
+  test("prompt returning undefined keeps deploy+warning (no prompt wired)", async () => {
+    project = createTempProject();
+    mkdirSync(join(project.cwd, ".cursor"), { recursive: true });
+    writeManifestYaml(
+      project.cwd,
+      consumerManifest({
+        name: "prompt-undefined",
+        target: "cursor",
+        depYaml: gitDepYaml(),
+      }),
+    );
+
+    const { result } = await installBinPlugin(project.cwd, {
+      trustBin: "default",
+      isInteractive: true,
+      askBinConsent: () => undefined,
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(deployedBinExists(project.cwd)).toBe(true);
+    expect(hasTrustBinWarning(result)).toBe(true);
+  });
 });
 
 describe("install-trust-bin — registry package bin gate", () => {

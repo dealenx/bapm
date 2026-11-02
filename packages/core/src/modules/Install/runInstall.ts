@@ -471,13 +471,14 @@ export async function runInstall(options: RunInstallOptions = {}): Promise<Insta
   const binDiagnostics: unknown[] = [];
   if (!skipApmMaterialize) {
     binDiagnostics.push(
-      ...deployBinsAfterConsent({
+      ...(await deployBinsAfterConsent({
         cwd,
         rootManifest,
         nodes,
         trustBin,
         frozen,
         isInteractive: options.isInteractive,
+        askBinConsent: options.askBinConsent,
         env: options.env,
         stdinIsTTY: options.stdinIsTTY,
         binDeployRoot: options.binDeployRoot,
@@ -485,7 +486,7 @@ export async function runInstall(options: RunInstallOptions = {}): Promise<Insta
         policyPath,
         noPolicy,
         policyPorts,
-      }),
+      })),
     );
   }
 
@@ -1033,13 +1034,14 @@ async function deployMcpAfterPolicy(args: {
 }
 
 /** Discover + gate + materialize dependency package-root `bin/` (install-trust-bin). */
-function deployBinsAfterConsent(args: {
+async function deployBinsAfterConsent(args: {
   cwd: string;
   rootManifest: BapmManifest;
   nodes: ResolvedNode[];
   trustBin: "allow" | "deny" | "default";
   frozen: boolean;
   isInteractive?: boolean;
+  askBinConsent?: (packageName: string) => boolean | undefined | Promise<boolean | undefined>;
   env?: Record<string, string | undefined>;
   stdinIsTTY?: boolean;
   binDeployRoot?: string;
@@ -1057,7 +1059,7 @@ function deployBinsAfterConsent(args: {
     defaultFetchFailure?: RunInstallOptions["defaultFetchFailure"];
     implementationDefaultHost?: string;
   };
-}): unknown[] {
+}): Promise<unknown[]> {
   const diagnostics: unknown[] = [];
   const projectSurface = parseExecutableGrants({
     manifest: args.rootManifest as Record<string, unknown>,
@@ -1096,23 +1098,48 @@ function deployBinsAfterConsent(args: {
       userSurface,
     });
 
-    if (!consent.deploy) {
+    let effective = consent;
+    if (consent.warn && args.askBinConsent) {
+      // Interactive posture case: ask for an explicit answer instead of
+      // deploying silently. undefined keeps the deploy+warning behavior
+      // (no prompt wired / non-TTY).
+      const approved = await args.askBinConsent(node.name);
+      if (approved === true) {
+        effective = {
+          ...consent,
+          warn: false,
+          reason: `bin deploy allowed for "${node.name}" (interactive prompt consent)`,
+        };
+      } else if (approved === false) {
+        effective = {
+          ...consent,
+          deploy: false,
+          withhold: true,
+          warn: false,
+          allowed: false,
+          outcome: "withhold",
+          reason: `bin deploy declined for "${node.name}" (interactive prompt consent)`,
+        };
+      }
+    }
+
+    if (!effective.deploy) {
       diagnostics.push({
         code: "BIN_TRUST_WITHHOLD",
         message:
-          consent.reason ?? `bin deploy withheld for "${node.name}" (consent / ExecutableTrust)`,
+          effective.reason ?? `bin deploy withheld for "${node.name}" (consent / ExecutableTrust)`,
         packageName: node.name,
         withhold: true,
         skip: true,
         trustBin: args.trustBin,
-        ladderOutcome: consent.ladderOutcome,
-        outcome: consent.outcome,
+        ladderOutcome: effective.ladderOutcome,
+        outcome: effective.outcome,
       });
       continue;
     }
 
     materializeBinFiles({ files, deployRoot });
-    if (consent.warn && !trustPostureWarned) {
+    if (effective.warn && !trustPostureWarned) {
       trustPostureWarned = true;
       diagnostics.push({
         code: "BIN_TRUST_POSTURE_WARN",

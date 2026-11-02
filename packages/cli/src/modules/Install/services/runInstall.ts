@@ -15,6 +15,7 @@ import {
   registerManifestIntegrationsFromCwd,
 } from "@/app/integrations/loadManifestIntegrations.ts";
 import { createCliIntegrationRegistry } from "@/app/integrations/registry.ts";
+import { canonicalPackageSpecifier } from "@/common/canonicalHosts.ts";
 import { enrichUnregisteredTargetMessage } from "@/common/enrichUnregisteredTargetMessage.ts";
 import { parseTargetSpec } from "@/common/targetSpec.ts";
 
@@ -543,6 +544,19 @@ async function runCoreInstall(
     if (target?.error) throw new Error(target.error);
     if (target?.specifier) {
       registry.register(await loadIntegrationFromPackage(target.specifier, target.id, cwd));
+    } else if (target?.id && !registry.get(target.id)) {
+      // Forced bare id before a manifest exists (positional add creates it inside
+      // core) or without a targets entry: register the canonical package directly.
+      // Soft-fail — core reports the unregistered-target guidance.
+      try {
+        registry.register(
+          await loadIntegrationFromPackage(canonicalPackageSpecifier(target.id), target.id, cwd, {
+            allowCliFallback: process.env.BAPM_GIT_RUN === "1",
+          }),
+        );
+      } catch {
+        // Not resolvable here; leave unregistered on purpose.
+      }
     }
     const result = await coreRunInstall({
       cwd: options.cwd,

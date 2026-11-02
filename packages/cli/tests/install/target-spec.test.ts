@@ -7,12 +7,14 @@ import {
   acmeMarkerPath,
   createTempProject,
   existsSync,
+  linkCursorIntegration,
   linkFixturePackage,
   runInProject,
   writeActiveProject,
   writeText,
   type TempProject,
 } from "./active-helpers.ts";
+import { join } from "node:path";
 
 describe("parseTargetSpec", () => {
   test("bare host id stays id-only", () => {
@@ -107,5 +109,26 @@ describe("CLI install --target package forms", () => {
 
     expect(result).not.toBe(0);
     expect(combined).toMatch(/id=@acme\/integration-editor/);
+  });
+
+  test("bare --target registers the canonical package before the manifest exists (positional add)", async () => {
+    project = createTempProject();
+    linkCursorIntegration(project.cwd);
+    writeText(project.cwd, "leaf/bapm.yml", "name: leaf\nversion: 1.0.0\n");
+
+    // No manifest on disk yet: core auto-creates it from the positional ref,
+    // which happens AFTER CLI registration — the forced id must not go blind.
+    const { result, combined } = await runInProject(project.cwd, [
+      "install",
+      "./leaf",
+      "--target",
+      "cursor",
+    ]);
+
+    expect(result).toBe(0);
+    expect(combined).toMatch(/installed for cursor/i);
+    expect(
+      existsSync(join(project.cwd, "apm.yml")) || existsSync(join(project.cwd, "bapm.yml")),
+    ).toBe(true);
   });
 });

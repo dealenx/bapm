@@ -9,6 +9,7 @@ import {
   existsSync,
   linkCursorIntegration,
   linkFixturePackage,
+  readFileSync,
   runInProject,
   writeActiveProject,
   writeText,
@@ -127,8 +128,37 @@ describe("CLI install --target package forms", () => {
 
     expect(result).toBe(0);
     expect(combined).toMatch(/installed for cursor/i);
-    expect(
-      existsSync(join(project.cwd, "apm.yml")) || existsSync(join(project.cwd, "bapm.yml")),
-    ).toBe(true);
+    const manifestPath = existsSync(join(project.cwd, "apm.yml"))
+      ? join(project.cwd, "apm.yml")
+      : join(project.cwd, "bapm.yml");
+    expect(existsSync(manifestPath)).toBe(true);
+
+    // The forced target must land in the auto-created manifest so the next
+    // bare `bapm install` reproduces without flags.
+    const raw = readFileSync(manifestPath, "utf8");
+    expect(raw).toMatch(/targets:/);
+    expect(raw).toMatch(/cursor:\s*["']?@b-apm\/integration-cursor["']?/);
+    expect(raw).toMatch(/active:/);
+
+    // And the follow-up bare install uses the persisted target.
+    const second = await runInProject(project.cwd, ["install"]);
+    expect(second.result).toBe(0);
+    expect(second.combined).toMatch(/installed for cursor/i);
+  });
+
+  test("--target does not rewrite an already declared active target", async () => {
+    project = createTempProject();
+    linkCursorIntegration(project.cwd);
+    writeActiveProject(project.cwd, {
+      name: "cli-target-declared",
+      active: { target: "cursor" },
+    });
+    const before = readFileSync(join(project.cwd, "bapm.yml"), "utf8");
+
+    const { result } = await runInProject(project.cwd, ["install", "--target", "cursor"]);
+    expect(result).toBe(0);
+    // Declared hosts stay the manifest owner's choice — --target is a
+    // per-invocation override and must not mutate configured projects.
+    expect(readFileSync(join(project.cwd, "bapm.yml"), "utf8")).toBe(before);
   });
 });

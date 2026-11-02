@@ -9,6 +9,7 @@ import {
   loadManifest,
   resolveEffectiveFrozen,
   runInstall as coreRunInstall,
+  writeProducerManifest,
 } from "@b-apm/core";
 import type { InstallDeps, InstallOptions, InstallResult } from "../types/install.types.ts";
 import {
@@ -599,6 +600,9 @@ async function runCoreInstall(
     } else if (result.activeTargets && result.activeTargets.length > 0) {
       console.log(`${deps.name}: installed for ${result.activeTargets.join(", ")}`);
     }
+    if (target?.id && !parsed.dryRun && !result.dryRun) {
+      persistForcedTarget(cwd, target);
+    }
     return { ok: true };
   } catch (error) {
     const raw =
@@ -610,6 +614,33 @@ async function runCoreInstall(
     const message = enrichUnregisteredTargetMessage(raw, cwd);
     console.error(`${deps.name}: ${message}`);
     return { ok: false, message };
+  }
+}
+
+/**
+ * Record a forced `--target` in the manifest when the project declares no host
+ * at all (no active / no target preference) — typically a manifest that this
+ * very run auto-created from a positional package ref. Keeps the next bare
+ * `bapm install` reproducible. Declared targets are never rewritten: `--target`
+ * stays a per-invocation override for configured projects.
+ */
+function persistForcedTarget(cwd: string, target: { id: string; specifier?: string }): void {
+  try {
+    const loaded = loadManifest({ cwd });
+    const doc = loaded.document as Record<string, unknown>;
+    const hasDeclaredTarget =
+      doc.active !== undefined || doc.target !== undefined || doc.targets !== undefined;
+    if (hasDeclaredTarget) return;
+    const specifier = target.specifier ?? canonicalPackageSpecifier(target.id);
+    doc.targets = { [target.id]: specifier };
+    doc.active = [{ kind: "target", id: target.id, negate: false }];
+    writeProducerManifest(doc, {
+      cwd,
+      sourcePath: loaded.sourcePath,
+      sourceFilename: loaded.sourceFilename,
+    });
+  } catch {
+    // Manifest re-read/write problems must never fail a successful install.
   }
 }
 

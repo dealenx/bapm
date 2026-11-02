@@ -208,4 +208,32 @@ describe("CLI install --target package forms", () => {
     expect(raw).toMatch(/- target: cursor/);
     expect(raw).toMatch(/- target: x-acme-editor/);
   });
+
+  test("bare --target keeps an existing git specifier (no downgrade to canonical)", async () => {
+    project = createTempProject();
+    linkCursorIntegration(project.cwd);
+    writeText(
+      project.cwd,
+      "bapm.yml",
+      [
+        "name: cli-git-spec-keep",
+        "version: 0.1.0",
+        "dependencies:",
+        "  apm: []",
+        "targets:",
+        "  omp: github:dealenx/bapm-omp",
+        "active:",
+        "  - target: omp",
+        "",
+      ].join("\n"),
+    );
+
+    const { result } = await runInProject(project.cwd, ["install", "--target", "omp"]);
+    expect(result).toBe(0);
+
+    const raw = readFileSync(join(project.cwd, "bapm.yml"), "utf8");
+    // The declared git specifier survives a bare id rerun untouched.
+    expect(raw).toMatch(/omp:\s*github:dealenx\/bapm-omp/);
+    expect(raw).not.toMatch(/@b-apm\/integration-omp/);
+  });
 });

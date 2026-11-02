@@ -643,8 +643,10 @@ function persistForcedTarget(cwd: string, target: { id: string; specifier?: stri
     } else {
       map = {};
     }
-    const targetsChanged = map[target.id] !== specifier;
-    map[target.id] = specifier;
+    // Add-only: an existing entry keeps its own specifier (github:, local path,
+    // custom package) — a bare --target id must not downgrade it to canonical.
+    const targetsChanged = map[target.id] === undefined;
+    if (targetsChanged) map[target.id] = specifier;
 
     // active: append the forced id unless it is already active.
     const active: Array<Record<string, unknown>> = Array.isArray(doc.active)

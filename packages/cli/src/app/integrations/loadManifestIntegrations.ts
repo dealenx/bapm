@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { basename, dirname, join, relative, resolve, isAbsolute, sep } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -449,7 +450,6 @@ async function installAndBuildGitIntegration(
   if (!hasDeps) return;
 
   const run = async (cmd: string, args: string[]): Promise<void> => {
-    const { spawn } = await import("node:child_process");
     await new Promise<void>((res, rej) => {
       const child = spawn(cmd, args, {
         cwd: packageRoot,

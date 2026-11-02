@@ -134,7 +134,7 @@ Usage:
 
 Options:
   -o, --output PATH   Override the target's default output path
-  --target <id|pkg|id=pkg> Force host (overrides manifest active; required when detection is missing or ambiguous)
+  --target <id|pkg|id=pkg> Force host (overrides manifest active; pkg = @b-apm/integration-<id>, github:owner/repo, or id=package)
   --dry-run           Preview would-write path; do not write
   -v, --verbose       Print thin source attribution (name, type, path)
   --validate          Discover/validate only; do not write

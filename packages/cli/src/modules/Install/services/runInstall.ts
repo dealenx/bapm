@@ -39,7 +39,7 @@ Options:
                            Allow transitive http:// deps from this FQDN (repeatable)
   --dev                    With package-ref add: write under devDependencies.apm (no-op without positional)
   --only <apm|mcp>         Install only APM packages (skip MCP) or only MCP configure (skip APM materialize)
-  --target <id|pkg|id=pkg> Force a host target (overrides manifest active; pkg = @b-apm/integration-<id> or id=package)
+  --target <id|pkg|id=pkg> Force a host target (overrides manifest active; pkg = @b-apm/integration-<id>, github:owner/repo, or id=package)
   --exclude <id>           Skip MCP configure for runtime id (e.g. cursor); does not skip install
   --update                 Re-resolve mutable refs (rejected with frozen / CI-default frozen)
   --parallel-downloads <n> Concurrent downloads (default 4; 0 = serial)
@@ -68,7 +68,7 @@ Notes:
   --exclude filters MCP/runtime configure only — not a full skip-install.
   --force is distinct from --target (forced-target activation).
   Host selection: --target <id|package|id=package> → manifest active: { target: <id> } → sole auto-detect → fail.
-  --target package forms: @b-apm/integration-<id> (canonical) or <id>=<npm-package-or-local-path>.
+  --target package forms: @b-apm/integration-<id> (canonical), github:owner/repo, or <id>=<npm-package-or-local-path>.
   Set active in bapm.yml / apm.yml when detect is missing or ambiguous.
   When cursor is active, eligible MCP servers write .cursor/mcp.json (direct mcp by default).
 `;

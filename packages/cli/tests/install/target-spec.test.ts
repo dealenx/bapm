@@ -22,6 +22,26 @@ describe("parseTargetSpec", () => {
     expect(parseTargetSpec("cursor")).toEqual({ id: "cursor" });
   });
 
+  test("github git specifier derives id from repo name", () => {
+    expect(parseTargetSpec("github:dealenx/bapm-omp")).toEqual({
+      id: "omp",
+      specifier: "github:dealenx/bapm-omp",
+    });
+    expect(parseTargetSpec("github:someone/my-host")).toEqual({
+      id: "my-host",
+      specifier: "github:someone/my-host",
+    });
+    expect(parseTargetSpec("https://github.com/dealenx/bapm-omp")).toEqual({
+      id: "omp",
+      specifier: "https://github.com/dealenx/bapm-omp",
+    });
+    // Explicit id=git form keeps both halves verbatim.
+    expect(parseTargetSpec("x-omp=github:dealenx/bapm-omp")).toEqual({
+      id: "x-omp",
+      specifier: "github:dealenx/bapm-omp",
+    });
+  });
+
   test("canonical package derives id and keeps specifier", () => {
     expect(parseTargetSpec("@b-apm/integration-cursor")).toEqual({
       id: "cursor",

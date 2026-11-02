@@ -39,6 +39,9 @@ export type SaveUserExecutableGrantsOptions = UserExecutableStoreOptions & {
 export function resolveUserConfigRoot(opts?: UserExecutableStoreOptions): string {
   if (opts?.configRoot) return opts.configRoot;
   if (opts?.configDir) return opts.configDir;
+  // BAPM_CONFIG_DIR isolates config (git-integration cache, user grants) per run.
+  const envRoot = process.env.BAPM_CONFIG_DIR;
+  if (envRoot && envRoot.trim()) return envRoot.trim();
   return join(homedir(), ".bapm");
 }
 

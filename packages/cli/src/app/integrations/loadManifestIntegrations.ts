@@ -1,15 +1,20 @@
 import { createRequire } from "node:module";
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { basename, dirname, join, relative, resolve, isAbsolute, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
+  createDefaultDownloader,
   declaredTargetIntegrationMap,
+  identityToCacheDir,
   loadManifest,
   ManifestError,
+  normalizeRepoIdentity,
+  resolveUserConfigRoot,
   type BapmManifest,
 } from "@b-apm/core";
 import type { BapmIntegration, IntegrationRegistry } from "@b-apm/integration-api";
 import { CANONICAL_HOST_IDS, canonicalPackageSpecifier } from "@/common/canonicalHosts.ts";
+import { isGitIntegrationSpecifier } from "@/common/targetSpec.ts";
 import { isLocalPathSpecifier, resolveContainedLocalPath } from "./localPathSpecifier.ts";
 
 export type ManifestIntegrationLoadCause =
@@ -239,40 +244,17 @@ export type LoadIntegrationOptions = {
 };
 
 /**
- * Resolve a map value (npm package or local filesystem path) from project cwd,
- * import it, and extract a runtime `BapmIntegration`
- * (createIntegration → createCursorIntegration → default).
+ * Import an integration module file and extract a validated runtime
+ * `BapmIntegration` (createIntegration → createCursorIntegration → default).
  */
-export async function loadIntegrationFromPackage(
+async function loadIntegrationModule(
+  resolvedPath: string,
   specifier: string,
   expectedId: string,
-  cwd: string,
-  options: LoadIntegrationOptions = {},
 ): Promise<BapmIntegration> {
-  let resolved: string;
-  if (isLocalPathSpecifier(specifier)) {
-    resolved = resolveLocalIntegrationPath(specifier, expectedId, cwd);
-  } else {
-    try {
-      resolved = resolveNpmPackageSpecifier(specifier, cwd, {
-        allowCliFallback: options.allowCliFallback,
-        globalRoots: options.globalRoots,
-      });
-    } catch (cause) {
-      const detail =
-        cause instanceof Error ? cause.message : "cannot find module / unresolvable package";
-      throw new ManifestIntegrationLoadError(
-        expectedId,
-        specifier,
-        "unresolvable",
-        `unresolvable module: ${detail}`,
-      );
-    }
-  }
-
   let mod: Record<string, unknown>;
   try {
-    const imported = await import(pathToFileURL(resolved).href);
+    const imported = await import(pathToFileURL(resolvedPath).href);
     mod = (imported ?? {}) as Record<string, unknown>;
   } catch (cause) {
     const detail = cause instanceof Error ? cause.message : String(cause);
@@ -334,6 +316,214 @@ export async function loadIntegrationFromPackage(
   }
 
   return candidate;
+}
+
+/** Cache dir for a cloned git integration: `<config-root>/integrations-git/<identity>`. */
+function gitIntegrationCacheDir(cloneUrl: string): string {
+  const identity = normalizeRepoIdentity(cloneUrl);
+  return join(resolveUserConfigRoot(), "integrations-git", identityToCacheDir(identity));
+}
+
+/** Parsed git integration specifier: clone URL plus optional package subpath. */
+type GitIntegrationSpec = { cloneUrl: string; subpath?: string };
+
+/** Parse `github:owner/repo[/sub]`, `https://github.com/...`, `git+…`, `file://…`. */
+function parseGitSpec(spec: string): GitIntegrationSpec {
+  const clean = spec
+    .trim()
+    .replace(/^git\+/, "")
+    .split("#")[0]!
+    .split("?")[0]!
+    .replace(/\/+$/, "");
+  if (clean.startsWith("github:")) {
+    const segs = clean.slice("github:".length).split("/").filter(Boolean);
+    const cloneUrl = `https://github.com/${segs[0]}/${(segs[1] ?? "").replace(/\.git$/, "")}.git`;
+    return { cloneUrl, subpath: segs.length > 2 ? segs.slice(2).join("/") : undefined };
+  }
+  if (/^https?:\/\/(www\.)?github\.com\//.test(clean)) {
+    const segs = new URL(clean).pathname.split("/").filter(Boolean);
+    const cloneUrl = `https://github.com/${segs[0]}/${(segs[1] ?? "").replace(/\.git$/, "")}.git`;
+    return { cloneUrl, subpath: segs.length > 2 ? segs.slice(2).join("/") : undefined };
+  }
+  // git://, git@, file:// and other plain URLs: whole repo, no subpath split.
+  return { cloneUrl: clean };
+}
+
+/**
+ * Load an integration from a git repository (`github:owner/repo`,
+ * `https://github.com/owner/repo`, `git+…`). Clones into the user config cache
+ * (reused across runs), resolves the package root (repo root or an explicit
+ * `/sub` suffix), installs production dependencies when the entry is not yet
+ * built, and validates the module like any map value.
+ */
+export async function loadGitIntegration(
+  specifier: string,
+  expectedId: string,
+): Promise<BapmIntegration> {
+  const spec = parseGitSpec(specifier);
+  const cloneRoot = gitIntegrationCacheDir(spec.cloneUrl);
+
+  const downloader = createDefaultDownloader();
+  if (!existsSync(join(cloneRoot, ".git"))) {
+    mkdirSync(cloneRoot, { recursive: true });
+    try {
+      await downloader.download({
+        repoUrl: spec.cloneUrl,
+        dest: cloneRoot,
+        identity: spec.cloneUrl,
+      });
+    } catch (cause) {
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      throw new ManifestIntegrationLoadError(
+        expectedId,
+        specifier,
+        "unresolvable",
+        `failed to clone git integration: ${detail}`,
+      );
+    }
+  }
+
+  const packageRoot = spec.subpath ? join(cloneRoot, ...spec.subpath.split("/")) : cloneRoot;
+
+  const manifestPath = join(packageRoot, "package.json");
+  if (!existsSync(manifestPath)) {
+    throw new ManifestIntegrationLoadError(
+      expectedId,
+      specifier,
+      "unresolvable",
+      `git integration has no package.json at ${spec.subpath ?? "(repo root)"}`,
+    );
+  }
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+    exports?: Record<string, unknown> | string;
+    main?: string;
+    scripts?: Record<string, string>;
+  };
+
+  const entryRelative =
+    typeof manifest.exports === "string"
+      ? manifest.exports
+      : typeof manifest.exports?.["."] === "string"
+        ? (manifest.exports["."] as string)
+        : (manifest.main ?? "./index.mjs");
+  const entryPath = resolve(packageRoot, entryRelative);
+
+  if (!existsSync(entryPath)) {
+    // Entry not built yet: install production deps and run the package's own
+    // build/prepare (mirrors npm git-dependency semantics).
+    await installAndBuildGitIntegration(packageRoot, manifest.scripts ?? {}, expectedId, specifier);
+    if (!existsSync(entryPath)) {
+      throw new ManifestIntegrationLoadError(
+        expectedId,
+        specifier,
+        "unresolvable",
+        `git integration entry "${entryRelative}" is missing after build`,
+      );
+    }
+  }
+
+  return loadIntegrationModule(entryPath, specifier, expectedId);
+}
+
+/** Install deps + run prepare/build for a cloned integration package (best-effort, fail-closed). */
+async function installAndBuildGitIntegration(
+  packageRoot: string,
+  scripts: Record<string, string>,
+  expectedId: string,
+  specifier: string,
+): Promise<void> {
+  const hasDeps = (() => {
+    try {
+      const pkg = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8")) as {
+        dependencies?: Record<string, string>;
+        devDependencies?: Record<string, string>;
+      };
+      return (
+        Boolean(pkg.dependencies && Object.keys(pkg.dependencies).length > 0) ||
+        Boolean(scripts.prepare || scripts.build)
+      );
+    } catch {
+      return false;
+    }
+  })();
+  if (!hasDeps) return;
+
+  const run = async (cmd: string, args: string[]): Promise<void> => {
+    const { spawn } = await import("node:child_process");
+    await new Promise<void>((res, rej) => {
+      const child = spawn(cmd, args, {
+        cwd: packageRoot,
+        stdio: ["ignore", "pipe", "pipe"],
+        shell: false,
+      });
+      let err = "";
+      child.stderr?.on("data", (c: Buffer) => {
+        err += c.toString();
+      });
+      child.on("error", rej);
+      child.on("close", (code) =>
+        code === 0
+          ? res()
+          : rej(new Error(`${cmd} ${args.join(" ")} failed: ${err.slice(0, 400)}`)),
+      );
+    });
+  };
+
+  try {
+    await run("bun", ["install", "--production"]).catch(() =>
+      run("npm", ["install", "--omit=dev"]),
+    );
+    if (scripts.prepare)
+      await run("bun", ["run", "prepare"]).catch(() => run("npm", ["run", "prepare"]));
+    else if (scripts.build)
+      await run("bun", ["run", "build"]).catch(() => run("npm", ["run", "build"]));
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    throw new ManifestIntegrationLoadError(
+      expectedId,
+      specifier,
+      "unresolvable",
+      `failed to build git integration: ${detail}`,
+    );
+  }
+}
+
+/**
+ * Resolve a map value (npm package or local filesystem path) from project cwd,
+ * import it, and extract a runtime `BapmIntegration`
+ * (createIntegration → createCursorIntegration → default).
+ */
+export async function loadIntegrationFromPackage(
+  specifier: string,
+  expectedId: string,
+  cwd: string,
+  options: LoadIntegrationOptions = {},
+): Promise<BapmIntegration> {
+  if (isGitIntegrationSpecifier(specifier)) {
+    return loadGitIntegration(specifier, expectedId);
+  }
+  let resolved: string;
+  if (isLocalPathSpecifier(specifier)) {
+    resolved = resolveLocalIntegrationPath(specifier, expectedId, cwd);
+  } else {
+    try {
+      resolved = resolveNpmPackageSpecifier(specifier, cwd, {
+        allowCliFallback: options.allowCliFallback,
+        globalRoots: options.globalRoots,
+      });
+    } catch (cause) {
+      const detail =
+        cause instanceof Error ? cause.message : "cannot find module / unresolvable package";
+      throw new ManifestIntegrationLoadError(
+        expectedId,
+        specifier,
+        "unresolvable",
+        `unresolvable module: ${detail}`,
+      );
+    }
+  }
+
+  return loadIntegrationModule(resolved, specifier, expectedId);
 }
 
 /**

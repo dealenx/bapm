@@ -922,10 +922,14 @@ async function deployMcpAfterPolicy(args: {
     };
   }
 
-  let wroteConfig = false;
-  let configPath: string | undefined;
-  let configuredTargetId: string | undefined;
-  let configuredServers: typeof approved | undefined;
+  // Every active host with a configureMcp adapter gets its own config write —
+  // multi-agent projects (e.g. omp + cursor active together) each receive the
+  // MCP file they read; lock records each target under mcp_configs/<target>.
+  const configuredByTarget: Array<{
+    targetId: string;
+    configPath: string;
+    servers: typeof approved;
+  }> = [];
 
   for (const targetId of args.activeTargets) {
     const target = findTarget(args.registry, targetId);
@@ -949,6 +953,7 @@ async function deployMcpAfterPolicy(args: {
     // Lookup: overrides → process.env → effective manifest `env` (fills gaps).
     const bakeMode = target.mcpEnvMode === "translate" ? "translate" : "bake";
     const manifestEnv = args.rootManifest.env;
+    let configuredServers: typeof approved;
     try {
       configuredServers = approved.map((server) =>
         bakeMcpServerMaps(server, {
@@ -994,29 +999,25 @@ async function deployMcpAfterPolicy(args: {
       );
     }
 
-    wroteConfig = true;
-    configuredTargetId = targetId;
-    configPath = normalizedConfigPath;
-    break;
+    configuredByTarget.push({
+      targetId,
+      configPath: normalizedConfigPath,
+      servers: configuredServers,
+    });
   }
 
   let lockDocument = args.lockDocument;
   let lockPath = args.lockPath;
 
-  if (
-    wroteConfig &&
-    !args.frozen &&
-    lockDocument &&
-    configPath &&
-    configuredTargetId &&
-    configuredServers
-  ) {
-    applyMcpInventoryToLock({
-      document: lockDocument,
-      servers: configuredServers,
-      configPath,
-      targetId: configuredTargetId,
-    });
+  if (configuredByTarget.length > 0 && !args.frozen && lockDocument) {
+    for (const entry of configuredByTarget) {
+      applyMcpInventoryToLock({
+        document: lockDocument,
+        servers: entry.servers,
+        configPath: entry.configPath,
+        targetId: entry.targetId,
+      });
+    }
     lockPath = partitionAndWriteLockfiles(lockDocument, {
       cwd: args.cwd,
       sourcePath: lockPath,

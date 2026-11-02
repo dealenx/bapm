@@ -618,22 +618,46 @@ async function runCoreInstall(
 }
 
 /**
- * Record a forced `--target` in the manifest when the project declares no host
- * at all (no active / no target preference) — typically a manifest that this
- * very run auto-created from a positional package ref. Keeps the next bare
- * `bapm install` reproducible. Declared targets are never rewritten: `--target`
- * stays a per-invocation override for configured projects.
+ * Upsert the forced `--target` into the manifest: `targets` gains (or updates)
+ * the entry while every existing entry is kept — several targets may coexist —
+ * and `active` gains the id when it is not active yet. A legacy singular
+ * `target:` declaration is left alone (mutually exclusive with `targets`).
  */
 function persistForcedTarget(cwd: string, target: { id: string; specifier?: string }): void {
   try {
     const loaded = loadManifest({ cwd });
     const doc = loaded.document as Record<string, unknown>;
-    const hasDeclaredTarget =
-      doc.active !== undefined || doc.target !== undefined || doc.targets !== undefined;
-    if (hasDeclaredTarget) return;
+    // Legacy singular `target:` cannot coexist with `targets:` — do not rewrite it.
+    if (doc.target !== undefined) return;
+
     const specifier = target.specifier ?? canonicalPackageSpecifier(target.id);
-    doc.targets = { [target.id]: specifier };
-    doc.active = [{ kind: "target", id: target.id, negate: false }];
+
+    // targets: legacy string[] → promote to an id→specifier map, then upsert.
+    let map: Record<string, string>;
+    if (Array.isArray(doc.targets)) {
+      map = Object.fromEntries(
+        (doc.targets as string[]).map((id) => [id, canonicalPackageSpecifier(id)]),
+      );
+    } else if (doc.targets && typeof doc.targets === "object") {
+      map = { ...(doc.targets as Record<string, string>) };
+    } else {
+      map = {};
+    }
+    const targetsChanged = map[target.id] !== specifier;
+    map[target.id] = specifier;
+
+    // active: append the forced id unless it is already active.
+    const active: Array<Record<string, unknown>> = Array.isArray(doc.active)
+      ? [...(doc.active as Array<Record<string, unknown>>)]
+      : [];
+    const activeHas = active.some(
+      (entry) => entry.kind === "target" && entry.id === target.id && entry.negate !== true,
+    );
+    if (!activeHas) active.push({ kind: "target", id: target.id, negate: false });
+
+    if (!targetsChanged && activeHas) return; // already fully recorded
+    doc.targets = map;
+    doc.active = active;
     writeProducerManifest(doc, {
       cwd,
       sourcePath: loaded.sourcePath,

@@ -181,4 +181,31 @@ describe("CLI install --target package forms", () => {
     // per-invocation override and must not mutate configured projects.
     expect(readFileSync(join(project.cwd, "bapm.yml"), "utf8")).toBe(before);
   });
+
+  test("--target accumulates a second target without dropping existing ones", async () => {
+    project = createTempProject();
+    const cursorSpec = linkCursorIntegration(project.cwd);
+    const acmeSpec = linkFixturePackage(project.cwd, "create-integration-pkg");
+    writeActiveProject(project.cwd, {
+      name: "cli-multi-target",
+      active: { target: "cursor" },
+      targets: { cursor: cursorSpec },
+    });
+
+    const { result, combined } = await runInProject(project.cwd, [
+      "install",
+      "--target",
+      `x-acme-editor=${acmeSpec}`,
+    ]);
+
+    expect(result).toBe(0);
+    expect(combined).toMatch(/installed for x-acme-editor/i);
+
+    const raw = readFileSync(join(project.cwd, "bapm.yml"), "utf8");
+    // Both targets coexist in targets:, and active lists both ids.
+    expect(raw).toMatch(/cursor:/);
+    expect(raw).toMatch(/x-acme-editor:/);
+    expect(raw).toMatch(/- target: cursor/);
+    expect(raw).toMatch(/- target: x-acme-editor/);
+  });
 });

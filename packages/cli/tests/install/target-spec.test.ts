@@ -153,14 +153,14 @@ describe("CLI install --target package forms", () => {
       : join(project.cwd, "bapm.yml");
     expect(existsSync(manifestPath)).toBe(true);
 
-    // The forced target must land in the auto-created manifest so the next
-    // bare `bapm install` reproduces without flags.
+    // Bare id records only the host choice — no fabricated package binding
+    // (canonical npm names are not all published, e.g. @b-apm/integration-omp).
     const raw = readFileSync(manifestPath, "utf8");
-    expect(raw).toMatch(/targets:/);
-    expect(raw).toMatch(/cursor:\s*["']?@b-apm\/integration-cursor["']?/);
     expect(raw).toMatch(/active:/);
+    expect(raw).toMatch(/- target: cursor/);
+    expect(raw).not.toMatch(/targets:/);
 
-    // And the follow-up bare install uses the persisted target.
+    // And the follow-up bare install uses the persisted active target.
     const second = await runInProject(project.cwd, ["install"]);
     expect(second.result).toBe(0);
     expect(second.combined).toMatch(/installed for cursor/i);

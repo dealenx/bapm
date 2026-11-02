@@ -618,10 +618,14 @@ async function runCoreInstall(
 }
 
 /**
- * Upsert the forced `--target` into the manifest: `targets` gains (or updates)
- * the entry while every existing entry is kept — several targets may coexist —
- * and `active` gains the id when it is not active yet. A legacy singular
- * `target:` declaration is left alone (mutually exclusive with `targets`).
+ * Upsert the forced `--target` into the manifest. Add-only: existing entries
+ * are never rewritten and `active` gains the id when it is not active yet, so
+ * several targets may coexist. A `targets:` binding is written only for an
+ * explicit specifier (`id=package`, `github:…`, canonical package name) — a
+ * bare id does not say which package source satisfied it, and not every
+ * canonical npm name is published (e.g. @b-apm/integration-omp), so it records
+ * only the host choice. A legacy singular `target:` declaration is left alone
+ * (mutually exclusive with `targets`).
  */
 function persistForcedTarget(cwd: string, target: { id: string; specifier?: string }): void {
   try {
@@ -629,24 +633,6 @@ function persistForcedTarget(cwd: string, target: { id: string; specifier?: stri
     const doc = loaded.document as Record<string, unknown>;
     // Legacy singular `target:` cannot coexist with `targets:` — do not rewrite it.
     if (doc.target !== undefined) return;
-
-    const specifier = target.specifier ?? canonicalPackageSpecifier(target.id);
-
-    // targets: legacy string[] → promote to an id→specifier map, then upsert.
-    let map: Record<string, string>;
-    if (Array.isArray(doc.targets)) {
-      map = Object.fromEntries(
-        (doc.targets as string[]).map((id) => [id, canonicalPackageSpecifier(id)]),
-      );
-    } else if (doc.targets && typeof doc.targets === "object") {
-      map = { ...(doc.targets as Record<string, string>) };
-    } else {
-      map = {};
-    }
-    // Add-only: an existing entry keeps its own specifier (github:, local path,
-    // custom package) — a bare --target id must not downgrade it to canonical.
-    const targetsChanged = map[target.id] === undefined;
-    if (targetsChanged) map[target.id] = specifier;
 
     // active: append the forced id unless it is already active.
     const active: Array<Record<string, unknown>> = Array.isArray(doc.active)
@@ -657,8 +643,28 @@ function persistForcedTarget(cwd: string, target: { id: string; specifier?: stri
     );
     if (!activeHas) active.push({ kind: "target", id: target.id, negate: false });
 
+    // targets: only with an explicit specifier — never fabricate a binding.
+    let map: Record<string, string> | undefined;
+    let targetsChanged = false;
+    if (target.specifier !== undefined) {
+      if (Array.isArray(doc.targets)) {
+        // legacy string[] → id→specifier map.
+        map = Object.fromEntries(
+          (doc.targets as string[]).map((id) => [id, canonicalPackageSpecifier(id)]),
+        );
+      } else if (doc.targets && typeof doc.targets === "object") {
+        map = { ...(doc.targets as Record<string, string>) };
+      } else {
+        map = {};
+      }
+      // Add-only: an existing entry keeps its own specifier (github:, local path,
+      // custom package) — a rerun must not downgrade it.
+      targetsChanged = map[target.id] === undefined;
+      if (targetsChanged) map[target.id] = target.specifier;
+    }
+
     if (!targetsChanged && activeHas) return; // already fully recorded
-    doc.targets = map;
+    if (map) doc.targets = map;
     doc.active = active;
     writeProducerManifest(doc, {
       cwd,
